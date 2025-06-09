@@ -1,5 +1,9 @@
 #Requires -RunAsAdministrator
 
+# Credit to:
+# https://github.com/AceDroidX/HuaweiBatteryControl
+# This script is a PowerShell port of the original C++ code
+
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
