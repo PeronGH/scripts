@@ -23,8 +23,10 @@ function Show-Help {
     @"
 Usage:
 
-HuaweiBatteryControl.ps1 <upper limit> <lower limit> [-New]
+HuaweiBatteryControl.ps1 <upper limit> [lower limit] [-New]
     -New     Using new methods, new devices or BIOS may require this option
+    
+    If lower limit is not specified, it will be set to upper limit - 5
 
 HuaweiBatteryControl.ps1 <raw data in decimal>
     Raw data explain:
@@ -33,8 +35,9 @@ HuaweiBatteryControl.ps1 <raw data in decimal>
     Then convert hex to decimal
 
 Examples:
-    .\HuaweiBatteryControl.ps1 80 60
-    .\HuaweiBatteryControl.ps1 80 60 -New
+    .\HuaweiBatteryControl.ps1 80        # Sets 80% max, 75% min
+    .\HuaweiBatteryControl.ps1 80 60     # Sets 80% max, 60% min
+    .\HuaweiBatteryControl.ps1 85 -New   # Sets 85% max, 80% min (new method)
     .\HuaweiBatteryControl.ps1 1174537219
 "@
 }
@@ -47,14 +50,41 @@ function Get-BatteryData {
     
     switch ($ArgCount) {
         1 { 
-            $data = [uint64]$UpperLimit 
+            # Check if it's a raw data input or upper limit
+            $upperValue = [uint64]$UpperLimit
+            if ($upperValue -gt 100) {
+                # Treat as raw data
+                $data = $upperValue
+            } else {
+                # Treat as upper limit, set lower to upper - 5
+                $upper = $upperValue
+                $lower = [Math]::Max(0, $upper - 5)  # Ensure lower doesn't go below 0
+                Write-Host "Auto-setting lower limit to: $lower%" -ForegroundColor Cyan
+                
+                if ($New) {
+                    $data = $upper * 0x10000000000 -bor $lower * 0x100000000 -bor 0x48011503
+                } else {
+                    $data = $upper * 0x1000000 -bor $lower * 0x10000 -bor 0x1003
+                }
+            }
         }
         2 { 
-            $upper = [uint64]$UpperLimit
-            $lower = [uint64]$LowerLimit
-            $data = $upper * 0x1000000 -bor $lower * 0x10000 -bor 0x1003
+            # Two arguments: could be upper+lower or upper+New flag
+            if ($New) {
+                # upper limit with New flag, auto-set lower
+                $upper = [uint64]$UpperLimit
+                $lower = [Math]::Max(0, $upper - 5)
+                Write-Host "Auto-setting lower limit to: $lower%" -ForegroundColor Cyan
+                $data = $upper * 0x10000000000 -bor $lower * 0x100000000 -bor 0x48011503
+            } else {
+                # upper and lower limits specified
+                $upper = [uint64]$UpperLimit
+                $lower = [uint64]$LowerLimit
+                $data = $upper * 0x1000000 -bor $lower * 0x10000 -bor 0x1003
+            }
         }
         3 { 
+            # All three: upper, lower, and New flag
             if ($New) {
                 $upper = [uint64]$UpperLimit
                 $lower = [uint64]$LowerLimit
@@ -73,7 +103,7 @@ function Get-BatteryData {
 
 function Invoke-HuaweiBatteryControl {
     try {
-        # Count non-empty arguments
+        # Count non-empty arguments and handle the New flag specially
         $argCount = 0
         if ($UpperLimit) { $argCount++ }
         if ($LowerLimit) { $argCount++ }
@@ -111,10 +141,15 @@ function Invoke-HuaweiBatteryControl {
         $wmiInstance = Get-WmiObject -Namespace "ROOT\WMI" -Class "OemWMIMethod" -Filter "InstanceName='ACPI\\PNP0C14\\HWMI_0'"
         
         if (-not $wmiInstance) {
+            # Try without the specific instance filter
+            $wmiInstance = Get-WmiObject -Namespace "ROOT\WMI" -Class "OemWMIMethod" | Select-Object -First 1
+        }
+        
+        if (-not $wmiInstance) {
             throw "Could not find Huawei WMI instance. This may not be a supported Huawei device."
         }
         
-        # Execute the method - the key fix is here
+        # Execute the method
         $result = $wmiInstance.OemWMIfun($inputArray)
         
         # Check if we got a result object
