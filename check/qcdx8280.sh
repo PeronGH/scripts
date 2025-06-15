@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 grep_ver() {
     curl -s "$1" | grep "qcdx8280.cab" | awk '{last=$0} END {print $2}'

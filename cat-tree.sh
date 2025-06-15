@@ -26,7 +26,7 @@ if [ ! -d "$TARGET_DIR" ]; then
 fi
 
 # Check for required command: 'file'
-if ! command -v file &> /dev/null; then
+if ! command -v file &>/dev/null; then
     echo "Error: The 'file' command is not found. Please install it." >&2
     echo "(On Debian/Ubuntu: sudo apt-get install file)" >&2
     echo "(On Fedora/CentOS: sudo yum install file)" >&2
@@ -59,7 +59,7 @@ find "$TARGET_DIR" \( "${prune_args[@]}" \) -prune -o -type f -print0 | while IF
         # Get the file extension for the code block language identifier.
         # ${file##*.} is a bash parameter expansion to get the string after the last dot.
         extension="${file##*.}"
-        
+
         # If the filename has no extension (e.g., 'Makefile'), the extension will be the
         # full filename. In that case, use a generic or empty identifier.
         if [[ "$extension" == "$file" ]]; then
@@ -77,4 +77,3 @@ find "$TARGET_DIR" \( "${prune_args[@]}" \) -prune -o -type f -print0 | while IF
         echo # Add a blank line for better separation between files
     fi
 done
-
